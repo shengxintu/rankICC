@@ -1,0 +1,400 @@
+#######A function to generate data
+generate.data <- function(seed=1234, n=30, cluster.limit=c(10,10), mu=1, vu=1,vr=1, hlf=F){
+  if(seed) {set.seed(seed)}
+  #cluster size
+  if(hlf) size.cluster <- rep(cluster.limit, each = n/2)
+  else{
+    if(cluster.limit[1] == cluster.limit[2]){
+      size.cluster <- rep(cluster.limit[1], n)
+    }else size.cluster <- sample(cluster.limit[1]:cluster.limit[2], n, replace = TRUE)
+  }
+  #generate data for each cluster
+  x <- NULL
+  cluster <- NULL
+  id <- NULL
+  #generate cluster means
+  u <- rnorm(n, mean = mu, sd = sqrt(vu))
+  for(i in 1:n){
+    n.cluster <- size.cluster[i]
+    r <- rnorm(n.cluster, mean = 0, sd = sqrt(vr))
+    x <- c(x, r+u[i])
+    cluster <- c(cluster, rep(i, n.cluster))
+    id <- c(id, 1:n.cluster)
+  }
+  #format output
+  dat <- data.frame("x"=x,
+                    "cluster"=as.factor(cluster),
+                    "id"=as.factor(id))
+  return(dat)
+}
+
+generate.data.multi <- function(seed=1234, n1=c(10,10), n2=c(10,10), n3=30, mu=1, v1=1, v2=1, v3=1){
+  set.seed(seed)
+  #cluster size
+  if(n2[1] == n2[2]){
+    size <- rep(n2[1], n3)
+  }else size <- replicate(n3, sample(n2[1]:n2[2], 1))
+  u <- rnorm(n3, mean = mu, sd = sqrt(v3))
+  dat <- list()
+  for(i in 1:n3){
+    dsub <- generate.data(seed = FALSE, n=size[i], cluster.limit=n1, mu=u[i], vu=v2, vr=v1, hlf=F)
+    colnames(dsub)[2] <- "level2"
+    dsub$level3 <- i
+    dat[[i]] <- dsub
+  }
+  dat <- do.call(rbind, dat)
+  dat$level3 <- as.factor(dat$level3)
+  return(dat)
+}
+
+
+CDF.mean <- function(x, pij, tol = 1e-7) {
+  vapply(x, function(i) {
+    c1 <- x - i
+    isEq <- abs(c1) < tol
+    isLT <- (!isEq & c1 < 0)
+    sum(isLT * pij + (isEq * pij) / 2)
+  }, numeric(1))
+}
+
+CDF.cov <- function(ef, pci){
+  mat <- outer(ef, ef, `*`)
+  s <- sum(mat) - sum(diag(mat)) 
+  r <- s / (nrow(mat) * (nrow(mat)-1)) * pci
+  return(r)
+}
+
+outer_lte <- function(a, b, tol = 1e-7) {
+  m1 <- outer(a, b, `-`)
+  isEq <- abs(m1) < tol
+  isLT <- (!isEq & m1 < 0)
+  list(isEq, isLT)
+}
+
+neffi3 <- function(kij, r2, r3){
+  ki <- sum(kij)
+  ki^2/(ki * (1 - r2 + r3 * ki) + (r2 - r3) * sum(kij^2))
+}
+
+neffi2 <- function(kij, r2){
+  nij <- kij/(1 + r2 * (kij - 1))
+  nij / sum(nij)
+}
+
+CDF.cov.multi <- function(ef, pci, idx){
+  s <- 0
+  for(i in seq_along(idx)){
+    s <- s + sum(ef[i] * ef[idx != idx[i]])
+  }
+  kij <- table(idx)
+  wi <- (sum(kij))^2 - sum(kij^2)
+  s <- s * pci / wi
+  return(s)
+}
+
+d3f <- function(ip, dat, cl, avg, n, an, bn) {
+  l_rowix <- tapply(seq(nrow(dat)), dat[,'cluster'], I)
+  allL1 <- dat[,'ef'] - avg
+  allNI <- lengths(l_rowix)
+  allPI <- tapply(dat[,'pci'], dat[,'cluster'], unique)
+  xi <- dat[l_rowix[[ip]],'x']
+  pij <- dat[l_rowix[[ip]],'pij']
+  allLTE <- outer_lte(xi, dat[,'x'])
+  allCMP <- colSums(((allLTE[[1]] | allLTE[[2]]) + allLTE[[2]]) / 2 * pij)#F(xi'j|xij'')
+  t1 <- numeric(length(cl))
+  d34 <- 0
+  for(i in seq_along(t1)) {
+    ix <- l_rowix[[i]]
+    l1 <- allL1[ix]
+    l2 <- allCMP[ix]
+    ni <- unname(allNI[i])
+    Pi <- allPI[[i]]
+    s1 <- sum(unlist(lapply(l1, `+`, l1)))
+    s2 <- sum(l1 * 2)
+    t1[i] <- (s1 - s2) / (ni * (ni - 1)) * Pi
+    
+    s1 <- sum(unlist(lapply(l1, `*`, l2)))
+    s2 <- sum(l1 * l2)
+    d34 <- d34 + (s1 - s2) * 2 * Pi / (ni * (ni - 1))
+  }
+  
+  fi <- dat[l_rowix[[ip]],'ef']
+  t2 <- allLTE[[1]] / 2 + allLTE[[2]]
+  calc1 <- colSums(t2 * pij) * dat[,'pij']
+  cni <- sum(pij * fi) + sum(calc1) / n
+  t3 <- sum(calc1 * allL1) * 2 
+  t4 <- cni * sum(dat[,'pij'] * allL1) * 2 
+  d34 / bn - sum(t1) * cni / bn - an / (bn^2) * (t3 - t4)
+}
+
+#########Calculate components for standard error 
+d3f.gamma2 <- function(ip, dat, avg, n, an, bn) {
+  l_rowix <- tapply(seq(nrow(dat)), dat[,'level3'], I)
+  l_rowijx <- tapply(seq(nrow(dat)), dat[,'level32'], I)
+  allL1 <- dat[,'ef'] - avg
+  allNIJ <- lengths(l_rowijx)
+  allPIJ <- tapply(dat[,'pij'], dat[,'level32'], unique)
+  xi <- dat[l_rowix[[ip]],'x']
+  pijk <- dat[l_rowix[[ip]],'pijk']
+  allLTE <- outer_lte(xi, dat[,'x'])
+  allCMP <- colSums(((allLTE[[1]] | allLTE[[2]]) + allLTE[[2]]) / 2 * pijk)
+  t1 <- numeric(length(unique(dat[,'level32'])))
+  dd1 <- 0
+  for(ij in seq_along(t1)) {
+    ijx <- l_rowijx[[ij]]
+    l1 <- allL1[ijx]
+    l2 <- allCMP[ijx]
+    nij <- unname(allNIJ[ij])
+    Pij <- allPIJ[[ij]]
+    
+    s1 <- sum(unlist(lapply(l1, `+`, l1)))
+    s2 <- sum(l1 * 2)
+    t1[ij] <- (s1 - s2) / (nij * (nij - 1)) * Pij
+    
+    s1 <- sum(unlist(lapply(l1, `*`, l2)))
+    s2 <- sum(l1 * l2)
+    dd1 <- dd1 + (s1 - s2) * 2 * Pij / (nij * (nij - 1))
+  }
+  
+  fi <- dat[l_rowix[[ip]],'ef']
+  t2 <- allLTE[[1]] / 2 + allLTE[[2]]
+  calc1 <- colSums(t2 * pijk) * dat[,'pijk']
+  cni <- sum(pijk * fi) + sum(calc1) / n
+  t3 <- sum(calc1 * allL1) * 2 
+  t4 <- cni * sum(dat[,'pijk'] * allL1) * 2 
+  dd1 / bn - sum(t1) * cni / bn - an / (bn^2) * (t3 - t4)
+}
+
+#################SE part for gamma 3
+d3f.gamma3 <- function(ip, dat, cl, avg, n, an, bn) {
+  l_rowix <- tapply(seq(nrow(dat)), dat[,'level3'], I)
+  allL1 <- dat[,'ef'] - avg
+  allNI <- lengths(l_rowix)
+  allPI <- tapply(dat[,'pi'], dat[,'level3'], unique)
+  xi <- dat[l_rowix[[ip]],'x']
+  pijk <- dat[l_rowix[[ip]],'pijk']
+  allLTE <- outer_lte(xi, dat[,'x'])
+  allCMP <- colSums(((allLTE[[1]] | allLTE[[2]]) + allLTE[[2]]) / 2 * pijk)
+  dd1 <- t1 <- 0
+  for(i in seq_along(cl)){
+    ix <- l_rowix[[i]]
+    l1 <- allL1[ix]
+    l2 <- allCMP[ix]
+    Pi <- allPI[[i]]
+    cll2 <- dat[ix, 'level2']
+    mij <- table(cll2)
+    wi <- (sum(mij))^2 - sum(mij^2)
+    s1 <- s2 <- 0
+    for(j in unique(cll2)){
+      l1j <- l1[cll2 == j]
+      l2j <- l2[cll2 != j]
+      s1 <- s1 + sum(unlist(lapply(l1j, `*`, l2j)))
+      
+      l1j <- l1[cll2 != j]
+      l2j <- l2[cll2 == j]
+      s1 <- s1 + sum(unlist(lapply(l1j, `*`, l2j)))
+      
+      s2 <- s2 + sum(unlist(lapply(l1[cll2 == j], `+`, l1[cll2 != j])))    
+    }
+    dd1 <- dd1 + s1 * Pi / wi
+    t1 <- t1 + s2 * Pi / wi 
+  }
+  fi <- dat[l_rowix[[ip]],'ef']
+  t2 <- allLTE[[1]] / 2 + allLTE[[2]]
+  calc1 <- colSums(t2 * pijk) * dat[,'pijk']
+  cni <- sum(pijk * fi) + sum(calc1) / n
+  t3 <- sum(calc1 * allL1) * 2 
+  t4 <- cni * sum(dat[,'pijk'] * allL1) * 2 
+  dd1 / bn - t1 * cni / bn - an / (bn^2) * (t3 - t4)
+}
+
+est.Wcdf <- function(x, cluster, ri, std=T, opt_method='eff') {
+  cluster <- factor(cluster, levels=unique(cluster))
+  x <- x[order(cluster)]
+  cluster <- sort(cluster)
+  ####obtain estimates
+  #cluster size
+  ki <- tabulate(cluster) 
+  if(opt_method == "eff"){
+    #effective sample size
+    neffi <- ki / (1 + (ki - 1) * ri) 
+    #cluster weights
+    Pi <- neffi / sum(neffi)
+    #individual weights
+    pij <- rep(Pi / ki, ki)  
+    pci <- rep(Pi, ki)
+  }
+  if(opt_method=="combo"){
+    N <- length(x)
+    n <- length(ki)
+    size <- rep(ki, ki)
+    pij <- (1-ri)/N + ri/size/n
+    Pi <- (1-ri)/N * ki + ri/n
+    pci <- pij * size
+  }
+  #CDFs of observations
+  ef <- CDF.mean(x, pij) 
+  dat <- data.frame(x = x, cluster = cluster, pci = pci, pij = pij, ef = ef)
+  #averaged CDF
+  avg <- sum(ef * pij) 
+  #total variance
+  tv <- sum((ef - avg)^2 * pij)  
+  cl <- unique(cluster)
+  #covariance
+  l_l <- tapply(ef - avg, cluster, I) 
+  l_p <- as.list(Pi)
+  cv <- mapply(CDF.cov, l_l, l_p, USE.NAMES = FALSE) 
+  #estimate
+  est <- sum(cv) / tv 
+  ####calculate standard error 
+  if(std){
+    n <- length(cl)
+    an <- sum(cv) / n
+    bn <- tv / n
+    d1 <- cv / bn
+    d2 <- c(unname(tapply((ef - avg) ^ 2 * pij, cluster, sum)) * -an / bn ^ 2)
+    d3 <- vapply(cl, d3f, numeric(1), dat, cl, avg, n, an, bn)
+    se <- sd((d1 + d2 + d3) / sqrt(n))
+    output <- list(est = est, se = se)
+  }
+  else output <- est
+  
+  return(output)
+}
+
+
+est.cdf.multi <- function(x, level2, level3, weights="equal1", SE=TRUE){
+  level3 <- factor(level3, levels = unique(level3))
+  level2 <- as.character(level2)
+  idx <- order(level3, level2)
+  x <- x[idx]
+  level3 <- level3[idx]
+  level2 <- level2[idx]
+  level32 <- paste(level3, level2, sep="-")
+  level32 <- factor(level32, levels = unique(level32))
+  #number of obs in each level3
+  ki <- tabulate(level3)
+  #number of obs in each level2
+  kij <- unlist(tapply(level2, level3, table))
+  #number of level2 in each level3
+  mi <- unlist(lapply(tapply(level2, level3, unique), length))
+  #number of obs
+  N <- length(level3)
+  if(weights=="equal3"){
+    n3 <- length(unique(level3))
+    pi <- rep(1 / n3, N)
+    pij <- rep(rep(1 / mi, mi), kij) * pi
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  if(weights=="equal2"){
+    pi <- rep(mi / sum(mi), ki)
+    pij <- rep(1 / sum(mi), N)
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  if(weights=="equal1"){
+    pi <- rep(ki / N, ki)
+    pijk <-  rep(1 / N, N)
+    pij <- rep(as.vector(by(pijk, level32, sum)), kij)
+  }
+  
+  #CDFs of observations
+  ef <- CDF.mean(x, pijk) 
+  #averaged CDF
+  avg <- sum(ef * pijk) 
+  #total variance
+  tv <- sum((ef - avg)^2 * pijk)  
+  cl <- unique(level3)
+  n <- length(cl)
+  #################gamma2 
+  #covariance
+  l_l <- tapply(ef - avg, level32, I)
+  l_pij <- as.list(tapply(pij, level32, unique))
+  cv <- mapply(CDF.cov, l_l, l_pij, USE.NAMES = FALSE)
+  l_idx <- unlist(lapply(tapply(level3, level32, I), unique))
+  cv <- as.vector(by(cv, l_idx, sum))
+  #estimate
+  est2 <- sum(cv) / tv
+  #SE
+  if(SE){
+    an <- sum(cv) / n
+    bn <- tv / n
+    d1 <- cv / bn
+    d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
+    dat <- data.frame(x = x, level3 = level3, level2 = level2, level32 = level32, pij = pij, pijk = pijk, ef = ef)
+    d3 <- vapply(cl, d3f.gamma2, numeric(1), dat, avg, n, an, bn)
+    se2 <- sd((d1 + d2 + d3) / sqrt(n))
+  }
+  
+  ##################gamma3
+  #covariance
+  l_l <- tapply(ef - avg, level3, I)
+  l_pi <- as.list(tapply(pi, level3, unique))
+  l_ij <- tapply(level2, level3, I)
+  cv <- mapply(CDF.cov.multi, l_l, l_pi, l_ij, USE.NAMES = FALSE)
+  #estimate
+  est3 <- sum(cv) / tv
+  #SE
+  if(SE){
+    an <- sum(cv) / n
+    bn <- tv / n
+    d1 <- cv / bn
+    d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
+    dat <- data.frame(x = x, level3 = level3, level2 = level2, pi = pi, pijk = pijk, ef = ef)
+    d3 <- vapply(cl, d3f.gamma3, numeric(1), dat, cl, avg, n, an, bn)
+    se3 <- sd((d1 + d2 + d3) / sqrt(n))
+    output <- list("gamma2" = list(est = est2, se = se2),
+                   "gamma3" = list(est = est3, se = se3))
+  }
+  else{
+    output <- list("gamma2" = list(est = est2),
+                   "gamma3" = list(est = est3))
+  }
+  return(output)
+  
+}
+
+est.iter <- function(x, cluster, ri=0, tol=1e-5, maxIter=100, std=T){
+  i <- 0; d <- 10
+  ri1 <- ri2 <- ri
+  while(i < maxIter & d > tol){
+    rnew <- est.Wcdf(x, cluster, ri1, opt_method = "eff", std=F)
+    d <- abs(rnew - ri1)
+    ri1 <- rnew
+    i <- i + 1
+  }
+  n1 <- i
+  i <- 0; d <- 10
+  while(i < maxIter & d > tol){
+    rnew <- est.Wcdf(x, cluster, ri2, opt_method = "combo", std=F)
+    d <- abs(rnew - ri2)
+    ri2 <- rnew
+    i <- i + 1
+  }
+  n2 <- i  
+  if(std){
+    est1 <- est.Wcdf(x, cluster, ri1, opt_method = "eff")
+    est2 <- est.Wcdf(x, cluster, ri2, opt_method = "combo")
+    output <- list("est"=c(ri1, ri2),
+                   "se"=c(est1$se, est2$se),
+                   "Niter"=c(n1, n2))
+  }
+  else{output <- list("est"=c(ri1, ri2),
+                      "Niter"=c(n1, n2))}
+  return(output)
+}
+
+b <- generate.data.multi(seed=4321, n2=c(2,15), n1=c(2,15), n3=10, v1=10, v2=1, v3=1)
+x <- b$x
+level2 <- b$level2
+level3 <- b$level3
+est.cdf.multi(b$x, b$level2, b$level3,weights = "equal1")
+est.cdf.multi(b$x, b$level2, b$level3,weights = "equal2")
+est.cdf.multi(b$x, b$level2, b$level3,weights = "equal3")
+
+b <- generate.data(seed=4321, n=20, cluster.limit=c(2,15), mu=2, vu=3, vr=1)
+x <- b$x 
+cluster <- b$cluster
+est.Wcdf(x, cluster, 0)
+est.Wcdf(x, cluster, 1)
+est.iter(x, cluster, 0, maxIter = 1)
+

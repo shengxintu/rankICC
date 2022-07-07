@@ -1,0 +1,11 @@
+Package: rankICC
+Type: Package
+Title: Rank-based Intraclass Correlation for Clustered Data
+Version: 0.1.0
+Author: Shengxin Tu
+Maintainer: Shengxin Tu <shengxin.tu@vanderbilt.edu>
+Description: A package to estimate rank-based ICC for clustered data. 
+License: GPL (>= 2)
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.2
