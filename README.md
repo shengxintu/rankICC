@@ -1,2 +1,2 @@
 # rankICC
-Rank-based Intraclass Correlation for Clustered Data
+An R package for estimating rank-based intraclass correlation for clustered Data
