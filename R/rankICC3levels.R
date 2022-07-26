@@ -1,127 +1,227 @@
-#' Rank-based ICC with three hierarchies
+#' Rank ICC with three hierarchies
 #'
-#' \code{rankICC3levels} computes the rank-based intraclass correlation coefficient (ICC) with three hierarchies. Starting from the innermost level, the three levels are named level 1, level 2, and level 3. The rank-based ICC at level 2 evaluates the correlation between a random pair from the same level-2 unit. The rank-based ICC at level 3 evaluates the correlation between a random pair from the same level-3 unit but different level-2 units.
+#' \code{rankICC3levels} computes the rank intraclass correlation coefficient (ICC) with three hierarchies. Starting from the innermost level, the three levels are named level 1, level 2, and level 3. The rank ICC at level 2 evaluates the rank correlation between a random pair from the same level-2 unit. The rank ICC at level 3 evaluates the rank correlation between a random pair from the same level-3 unit but different level-2 units.
 #'
-#' @param x a numeric vector of observations.
-#' @param level2 a index vector of the level-2 units.
-#' @param level3 a index vector of the level-3 units.
-#' @param weights a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"level1"}, \code{"level2"}, \code{"level3"}, or a numeric vector. See Details.
-#' @param conf.int numeric specifying confidence interval coverage.
-#' @param fisher logical indicating whether to apply fisher transformation to compute confidence intervals.
+#' @param x a numeric or factor vector.
+#' @param level2 a vector indicating level-2 membership.
+#' @param level3 a vector indicating level-3 membership.
+#' @param weights a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"level1"}, \code{"level2"}, \code{"level3"}, or a numeric vector. Default is \code{"level1"}. See Details.
+#' @param conf.int numeric specifying confidence interval level.
+#' @param fisher logical, indicating whether to apply Fisher transformation to compute confidence intervals.
+#' @param na.rm logical. Should missing values be removed?
 #' @details \code{"level1"} assigns equal weights to level-1 units; \eqn{p_{ijk}=1/(\sum_{i=1}^n\sum_{j=1}^{n_i}m_{ij})}, where \eqn{n} is the total number of level-3 units, \eqn{n_i} is the number of level-2 units in the \eqn{i}th level-3 unit, and \eqn{m_{ij}} is the number of level-1 units in the \eqn{j}th level-2 unit and the \eqn{i}th level-3 unit. \code{"level2"} assigns equal weights to level-2 units; \eqn{p_{ijk}=1/(m_{ij}\sum_{i=1}^n n_{i})}. \code{"level3"} assigns equal weights to level-3 units; \eqn{p_{ijk}=1/(nn_{i}m_{ij})}.
-#' @return a matrix with two rows. The first row is for rank-based ICC at level 2 and the second row is for rank-based ICC at level 3. Each row with following components.
+#' @return a matrix with two rows. The first row is for rank ICC at level 2 and the second row is for rank ICC at level 3. Each row has the following components.
 #' \tabular{ll}{
-#'   \code{rankICC} \tab the rank-based ICC. \cr
+#'   \code{rankICC} \tab the rank ICC. \cr
 #'   \tab \cr
 #'   \code{SE} \tab the standard error. \cr
 #'   \tab \cr
 #'   \code{Lower, Upper} \tab the lower and upper bound of the confidence interval.\cr
 #' }
 #' @examples
-#' \dontrun{
-#' rankICC3levels(x, level2, level3, weights = "level2")
+#' k <- 50; m <- 5
+#' sigma.u <- 1; sigma.e <- 2
+#' u <- rnorm(k, 5, sigma.u)
+#' x1 <- matrix(NA, k, m)
+#' for (i in 1:k){
+#' x1[i,] <- u[i] + rnorm(5, 0, sigma.e)
 #' }
+#' x <- as.vector(t(x1))
+#' level2 <- rep(1:k, each=5)
+#' level3 <- level2 / 10
+#' rankICC3levels(x, level2, level3, weights = "level2")
 #' @export
 
 rankICC3levels <- function(x, level2, level3, weights = c("level1", "level2", "level3"),
-                        conf.int = 0.95, fisher = FALSE){
-    level3 <- factor(level3, levels = unique(level3))
-    level2 <- as.character(level2)
-    idx <- order(level3, level2)
-    x <- x[idx]
-    level3 <- level3[idx]
-    level2 <- level2[idx]
-    level32 <- paste(level3, level2, sep="-")
-    level32 <- factor(level32, levels = unique(level32))
-    #number of obs in each level3
-    ki <- tabulate(level3)
-    #number of obs in each level2
-    kij <- unlist(tapply(level2, level3, table))
-    #number of level2 in each level3
-    mi <- unlist(lapply(tapply(level2, level3, unique), length))
-    #number of obs
-    N <- length(level3)
-    if(is.numeric(weights)){
-      if(length(weights) != length(x)) stop("user-defined weights do not have the same length as the observations")
-      else{
-          pijk <- weights[idx]
-          pij <- rep(tapply(pijk, level32, sum), kij)
-          pi <- rep(tapply(pijk, level3, sum), ki)
-      }
+                        conf.int = 0.95, fisher = FALSE, na.rm = FALSE){
+    if(!is.numeric(x) & !is.factor(x)) stop("x must be a numeric or factor vector")
+    else if(length(level2) != length(x) | length(level3) != length(x)) stop("lengths of x and level membership differ")
+    else if(is.numeric(weights) & length(weights) != length(x)) stop("lengths of x and user-defined weights differ")
+    if(!is.numeric(weights) & !(weights[1] %in% c("level1", "level2", "level3"))) stop("a wrong method name entered!")
+    idx_order <- seq_along(x)
+    if(na.rm){
+      idx_order <- complete.cases(x, level2, level3)
+      x <- x[idx_order]
+      level2 <- level2[idx_order]
+      level3 <- level3[idx_order]
+      if(is.numeric(weights)) weights <- weights[idx_order]
     }
-    else if(weights[1]=="level3"){
-        n3 <- length(unique(level3))
-        pi <- rep(1 / n3, N)
-        pij <- rep(rep(1 / mi, mi), kij) * pi
-        pijk <-  pij / (unname(rep(kij, kij)))
-      }
-    else if(weights[1]=="level2"){
-        pi <- rep(mi / sum(mi), ki)
-        pij <- rep(1 / sum(mi), N)
-        pijk <-  pij / (unname(rep(kij, kij)))
-      }
-    else if(weights[1]=="level1"){
-        pi <- rep(ki / N, ki)
-        pijk <-  rep(1 / N, N)
-        pij <- rep(tapply(pijk, level32, sum), kij)
-      }
-    else stop("a wrong weighting method name entered!")
-    #CDFs of observations
-    ef <- emp_CDF(x, pijk)
-    #averaged CDF
-    avg <- sum(ef * pijk)
-    #total variance
-    tv <- sum((ef - avg)^2 * pijk)
-    cl <- unique(level3)
-    n <- length(cl)
-    output <- matrix(NA, ncol = 4, nrow = 2)
-    colnames(output) <- c("rankICC", "SE", "Lower", "Upper")
-    rownames(output) <- c("gamma2", "gamma3")
-    #################gamma2
-    #covariance
-    l_l <- tapply(ef - avg, level32, I)
-    l_pij <- as.list(tapply(pij, level32, unique))
-    cv <- mapply(cov_CDF, l_l, l_pij, USE.NAMES = FALSE)
-    l_idx <- unlist(lapply(tapply(level3, level32, I), unique))
-    cv <- tapply(cv, l_idx, sum)
-    #estimate
-    output["gamma2", "rankICC"] <- sum(cv) / tv
-    #the standard error and a confidence interval
-    if(conf.int){
-      an <- sum(cv) / n
-      bn <- tv / n
-      d1 <- cv / bn
-      d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
-      dat <- data.frame(x = x, level3 = level3, level2 = level2, level32 = level32, pij = pij, pijk = pijk, ef = ef)
-      d3 <- vapply(cl, d3f.gamma2, numeric(1), dat, avg, n, an, bn)
-      se2 <- sd((d1 + d2 + d3) / sqrt(n))
-      output["gamma2", c("Lower", "Upper")] <- getCI(output["gamma2", "rankICC"], se2, conf.int, fisher)
-      output["gamma2", "SE"] <- se2
-    }
-    ##################gamma3
-    #covariance
-    l_l <- tapply(ef - avg, level3, I)
-    l_pi <- as.list(tapply(pi, level3, unique))
-    l_ij <- tapply(level2, level3, I)
-    cv <- mapply(cov_CDF_multi, l_l, l_pi, l_ij, USE.NAMES = FALSE)
-    #estimate
-    output["gamma3", "rankICC"] <- sum(cv) / tv
-    #the standard error and a confidence interval
-    if(conf.int){
-      an <- sum(cv) / n
-      bn <- tv / n
-      d1 <- cv / bn
-      d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
-      dat <- data.frame(x = x, level3 = level3, level2 = level2, pi = pi, pijk = pijk, ef = ef)
-      d3 <- vapply(cl, d3f.gamma3, numeric(1), dat, cl, avg, n, an, bn)
-      se3 <- sd((d1 + d2 + d3) / sqrt(n))
-      output["gamma3", c("Lower", "Upper")] <- getCI(output["gamma3", "rankICC"], se3, conf.int, fisher)
-      output["gamma3", "SE"] <- se3
-    }
+    if(is.factor(x)) x <- as.numeric(x)
+    g2 <- rankICC3levels_gamma2(x, level2, level3, weights = weights, conf.int = conf.int, fisher = fisher)
+    g3 <- rankICC3levels_gamma3(x, level2, level3, weights = weights, conf.int = conf.int, fisher = fisher)
+    output <- rbind(g2, g3)
     return(output)
 }
 
 #Functions used for obtaining estimates for three-level data
+rankICC3levels_gamma2 <- function(x, level2, level3, weights = c("level1", "level2", "level3"),
+                          conf.int = 0.95, fisher = FALSE){
+  #remove clusters with one observation
+  level32 <- paste(level3, level2, sep="-")
+  kij <- table(level32)
+  if(sum(kij==1)){
+    idx <- names(kij[kij > 1])
+    level2 <- level2[level32 %in% idx]
+    level3 <- level3[level32 %in% idx]
+    x <- x[level32 %in% idx]
+    warning("level-2 units with only one observation were removed")
+  }
+  level3 <- factor(level3, levels = unique(level3))
+  level2 <- as.character(level2)
+  idx <- order(level3, level2)
+  x <- x[idx]
+  level3 <- level3[idx]
+  level2 <- level2[idx]
+  level32 <- paste(level3, level2, sep="-")
+  level32 <- factor(level32, levels = unique(level32))
+  #number of obs in each level3
+  ki <- tabulate(level3)
+  #number of obs in each level2
+  kij <- unlist(tapply(level2, level3, table))
+  #number of level2 in each level3
+  mi <- unlist(lapply(tapply(level2, level3, unique), length))
+  #number of obs
+  N <- length(level3)
+  if(is.numeric(weights)){
+    pijk <- weights[idx]
+    pij <- rep(tapply(pijk, level32, sum), kij)
+    pi <- rep(tapply(pijk, level3, sum), ki)
+  }
+  else if(weights[1]=="level3"){
+    n3 <- length(unique(level3))
+    pi <- rep(1 / n3, N)
+    pij <- rep(rep(1 / mi, mi), kij) * pi
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  else if(weights[1]=="level2"){
+    pi <- rep(mi / sum(mi), ki)
+    pij <- rep(1 / sum(mi), N)
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  else if(weights[1]=="level1"){
+    pi <- rep(ki / N, ki)
+    pijk <-  rep(1 / N, N)
+    pij <- rep(tapply(pijk, level32, sum), kij)
+  }
+  #CDFs of observations
+  ef <- emp_CDF(x, pijk)
+  #averaged CDF
+  avg <- sum(ef * pijk)
+  #total variance
+  tv <- sum((ef - avg)^2 * pijk)
+  cl <- unique(level3)
+  n <- length(cl)
+  output <- matrix(NA, ncol = 4, nrow = 1)
+  colnames(output) <- c("rankICC", "SE", "Lower", "Upper")
+  rownames(output) <- c("gamma2")
+  #################gamma2
+  #covariance
+  l_l <- tapply(ef - avg, level32, I)
+  l_pij <- as.list(tapply(pij, level32, unique))
+  cv <- mapply(cov_CDF, l_l, l_pij, USE.NAMES = FALSE)
+  l_idx <- unlist(lapply(tapply(level3, level32, I), unique))
+  cv <- tapply(cv, l_idx, sum)
+  #estimate
+  output["gamma2", "rankICC"] <- sum(cv) / tv
+  #the standard error and a confidence interval
+  if(conf.int){
+    an <- sum(cv) / n
+    bn <- tv / n
+    d1 <- cv / bn
+    d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
+    dat <- data.frame(x = x, level3 = level3, level2 = level2, level32 = level32, pij = pij, pijk = pijk, ef = ef)
+    d3 <- vapply(cl, d3f_gamma2, numeric(1), dat, avg, n, an, bn)
+    se2 <- sd((d1 + d2 + d3) / sqrt(n))
+    output["gamma2", c("Lower", "Upper")] <- getCI(output["gamma2", "rankICC"], se2, conf.int, fisher)
+    output["gamma2", "SE"] <- se2
+  }
+  return(output)
+}
+
+
+rankICC3levels_gamma3 <- function(x, level2, level3, weights = c("level1", "level2", "level3"),
+                                  conf.int = 0.95, fisher = FALSE){
+  #remove clusters with one observation
+  level3 <- as.character(level3)
+  mi <- lapply(tapply(level2, level3, unique), length)
+  if(sum(mi==1)){
+    idx <- names(mi[mi > 1])
+    level2 <- level2[level3 %in% idx]
+    level3 <- level3[level3 %in% idx]
+    x <- x[level3 %in% idx]
+    warning("level-3 units with only one level-2 unit were removed")
+  }
+  level3 <- factor(level3, levels = unique(level3))
+  level2 <- as.character(level2)
+  idx <- order(level3, level2)
+  x <- x[idx]
+  level3 <- level3[idx]
+  level2 <- level2[idx]
+  level32 <- paste(level3, level2, sep="-")
+  level32 <- factor(level32, levels = unique(level32))
+  #number of obs in each level3
+  ki <- tabulate(level3)
+  #number of obs in each level2
+  kij <- unlist(tapply(level2, level3, table))
+  #number of level2 in each level3
+  mi <- unlist(lapply(tapply(level2, level3, unique), length))
+  #number of obs
+  N <- length(level3)
+  if(is.numeric(weights)){
+    pijk <- weights[idx]
+    pij <- rep(tapply(pijk, level32, sum), kij)
+    pi <- rep(tapply(pijk, level3, sum), ki)
+  }
+  else if(weights[1]=="level3"){
+    n3 <- length(unique(level3))
+    pi <- rep(1 / n3, N)
+    pij <- rep(rep(1 / mi, mi), kij) * pi
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  else if(weights[1]=="level2"){
+    pi <- rep(mi / sum(mi), ki)
+    pij <- rep(1 / sum(mi), N)
+    pijk <-  pij / (unname(rep(kij, kij)))
+  }
+  else if(weights[1]=="level1"){
+    pi <- rep(ki / N, ki)
+    pijk <-  rep(1 / N, N)
+    pij <- rep(tapply(pijk, level32, sum), kij)
+  }
+  #CDFs of observations
+  ef <- emp_CDF(x, pijk)
+  #averaged CDF
+  avg <- sum(ef * pijk)
+  #total variance
+  tv <- sum((ef - avg)^2 * pijk)
+  cl <- unique(level3)
+  n <- length(cl)
+  output <- matrix(NA, ncol = 4, nrow = 1)
+  colnames(output) <- c("rankICC", "SE", "Lower", "Upper")
+  rownames(output) <- c("gamma3")
+  ##################gamma3
+  #covariance
+  l_l <- tapply(ef - avg, level3, I)
+  l_pi <- as.list(tapply(pi, level3, unique))
+  l_ij <- tapply(level2, level3, I)
+  cv <- mapply(cov_CDF_multi, l_l, l_pi, l_ij, USE.NAMES = FALSE)
+  #estimate
+  output["gamma3", "rankICC"] <- sum(cv) / tv
+  #the standard error and a confidence interval
+  if(conf.int){
+    an <- sum(cv) / n
+    bn <- tv / n
+    d1 <- cv / bn
+    d2 <- c(unname(tapply((ef - avg) ^ 2 * pijk, level3, sum)) * -an / bn ^ 2)
+    dat <- data.frame(x = x, level3 = level3, level2 = level2, pi = pi, pijk = pijk, ef = ef)
+    d3 <- vapply(cl, d3f_gamma3, numeric(1), dat, cl, avg, n, an, bn)
+    se3 <- sd((d1 + d2 + d3) / sqrt(n))
+    output["gamma3", c("Lower", "Upper")] <- getCI(output["gamma3", "rankICC"], se3, conf.int, fisher)
+    output["gamma3", "SE"] <- se3
+  }
+  return(output)
+}
+
 cov_CDF_multi <- function(ef, pci, idx){
   s <- 0
   for(i in seq_along(idx)){
@@ -133,7 +233,7 @@ cov_CDF_multi <- function(ef, pci, idx){
   return(s)
 }
 
-d3f.gamma2 <- function(ip, dat, avg, n, an, bn) {
+d3f_gamma2 <- function(ip, dat, avg, n, an, bn) {
   l_rowix <- tapply(seq(nrow(dat)), dat[,'level3'], I)
   l_rowijx <- tapply(seq(nrow(dat)), dat[,'level32'], I)
   allL1 <- dat[,'ef'] - avg
@@ -170,7 +270,7 @@ d3f.gamma2 <- function(ip, dat, avg, n, an, bn) {
   dd1 / bn - sum(t1) * cni / bn - an / (bn^2) * (t3 - t4)
 }
 
-d3f.gamma3 <- function(ip, dat, cl, avg, n, an, bn) {
+d3f_gamma3 <- function(ip, dat, cl, avg, n, an, bn) {
   l_rowix <- tapply(seq(nrow(dat)), dat[,'level3'], I)
   allL1 <- dat[,'ef'] - avg
   allNI <- lengths(l_rowix)

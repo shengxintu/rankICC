@@ -1,42 +1,59 @@
-#' Rank-based ICC with two hierarchies
+#' Rank ICC with two hierarchies
 #'
-#' \code{rankICC} computes the rank-based intraclass correlation coefficient (ICC) of \code{x}. It can be used with any orderable variables, including continuous and discrete variables. Different weighting methods are provided, including methods assigning equal weights to observations or clusters, iterative methods based on the effective sample size or a linear combination of the first two methods.
-#'
-#' @param x a numeric vector of observations.
+#' \code{rankICC} computes the rank intraclass correlation coefficient (ICC) of a two-level hierarchical distribution. It can be used with any orderable variable, including continuous and discrete variables. Different weighting methods are provided, including methods assigning equal weights to observations or to clusters.
+#' @param x a numeric or factor vector.
 #' @param cluster a vector of cluster index corresponding to \code{x}.
-#' @param weights a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"obs"}, \code{"clusters"}, \code{"ess"}, \code{"combination"}, or a numeric vector. See Details.
-#' @param conf.int numeric specifying confidence interval coverage.
-#' @param fisher logical indicating whether to apply fisher transformation to compute confidence intervals.
+#' @param weights a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"obs"}, \code{"clusters"}, \code{"ess"}, \code{"combination"}, or a numeric vector. Default is \code{"obs"}. See Details.
+#' @param conf.int numeric specifying confidence interval level.
+#' @param fisher logical, indicating whether to apply Fisher transformation to compute confidence intervals.
+#' @param na.rm logical. Should missing values be removed?
 #' @param ... additional arguments to be passed to the iteration function if \code{weights} is \code{"ess"} or \code{"combination"}. Specifying the tolerance via \code{"tol"} and the maximum iteration times via \code{"maxIter"}.
 #' @details \code{"obs"} assigns equal weights to observations; \eqn{p_{ij} = 1/N}, where \var{N} is the total number of observations. \code{"clusters"} assigns equal weights to clusters; \eqn{p_{ij} = 1/(nk_i)}, where \var{n} is the total number of clusters and k_i is the cluster size. \code{"ess"} and \code{"combination"} implement iterations until convergence; \eqn{p_{ij}(\gamma_I)=1/(1+k_i\gamma_I)/\{\sum_{j=1}^n k_j/(1+k_j\gamma_I)\}} for \code{"ess"}, \eqn{p_{ij}(\gamma_I)=(1-\gamma_I)/N+\gamma_I/(nk_i)} for \code{"combination"}.
 #' @return a vector with following components.
 #' \tabular{ll}{
-#'   \code{rankICC} \tab the rank-based ICC. \cr
+#'   \code{rankICC} \tab the rank ICC. \cr
 #'   \tab \cr
 #'   \code{SE} \tab the standard error. \cr
 #'   \tab \cr
 #'   \code{Lower, Upper} \tab the lower and upper bound of the confidence interval.\cr
 #' }
 #' @examples
-#' \dontrun{
+#' k <- 50; m <- 5
+#' sigma.u <- 1; sigma.e <- 2
+#' u <- rnorm(k, 5, sigma.u)
+#' x1 <- matrix(NA, k, m)
+#' for (i in 1:k){
+#' x1[i,] <- u[i] + rnorm(5, 0, sigma.e)
+#' }
+#' x <- as.vector(t(x1))
+#' cluster <- rep(1:k, each=5)
 #' rankICC(x, cluster, weights = "clusters")
 #' rankICC(x, cluster, weights = "ess", tol = 1e-4, maxIter = 10)
-#' }
 #' @export
 
 
 rankICC <- function(x, cluster, weights = c("obs", "clusters", "ess", "combination"),
-                           conf.int = 0.95, fisher = FALSE, ...){
+                           conf.int = 0.95, fisher = FALSE, na.rm = FALSE, ...){
+  if(!is.numeric(x) & !is.factor(x)) stop("x must be a numeric or factor vector")
+  else if(is.numeric(weights) & length(weights) != length(x)) stop("lengths of x and user-defined weights differ")
+  else if(length(cluster) != length(x)) stop("lengths of x and cluster differ")
+  idx <- seq_along(x)
+  if(na.rm){
+    idx <- complete.cases(x, cluster)
+    x <- x[idx]
+    cluster <- cluster[idx]
+  }
+  if(is.factor(x)) x <- as.numeric(x)
   if(is.numeric(weights)){
-    if(length(weights) != length(x)) stop("user-defined weights do not have the same length as the observations")
-    else output <- rankICCest(x, cluster, user_defined_weights = weights,
-                              conf.int = conf.int, fisher = fisher)
+    weights <- weights[idx]
+    output <- rankICCest(x, cluster, user_defined_weights = weights,
+                                conf.int = conf.int, fisher = fisher)
   }
   else if(weights[1] %in% c("ess", "combination")) output <- rankICCest_iter(x, cluster, weights = weights[1],
-                                                                       conf.int = conf.int, fisher = fisher, ...)
+                                                                               conf.int = conf.int, fisher = fisher, ...)
   else if(weights[1] %in% c("obs", "clusters")){
-    ri <- ifelse(weights[1] == "obs", 0, 1)
-    output <- rankICCest(x, cluster, ri = ri, conf.int = conf.int, fisher = fisher)
+      ri <- ifelse(weights[1] == "obs", 0, 1)
+      output <- rankICCest(x, cluster, ri = ri, conf.int = conf.int, fisher = fisher)
   }
   else stop("a wrong weighting method name entered!")
   return(output)
@@ -44,6 +61,15 @@ rankICC <- function(x, cluster, weights = c("obs", "clusters", "ess", "combinati
 
 rankICCest <- function(x, cluster, ri = 0, opt_method = "ess",
                        user_defined_weights = NULL, conf.int = 0.95, fisher = FALSE){
+  #Check whether there are clusters with only one observations
+  cluster <- as.character(cluster)
+  ki <- table(cluster)
+  if(sum(ki==1)){
+    idx <- names(ki[ki > 1])
+    cluster <- cluster[cluster %in% idx]
+    x <- x[cluster %in% idx]
+    warning("clusters with only one observation were removed")
+  }
   cluster <- factor(cluster, levels=unique(cluster))
   x <- x[order(cluster)]
   #set up the weights
@@ -69,11 +95,12 @@ rankICCest <- function(x, cluster, ri = 0, opt_method = "ess",
     }
   }
   else{
+    user_defined_weights <- user_defined_weights/sum(user_defined_weights)
     pij <- user_defined_weights[order(cluster)]
     cluster <- sort(cluster)
     ki <- tabulate(cluster)
     Pi <- tapply(pij, cluster, sum)
-    pci <- pij * rep(ki, ki)
+    pci <- rep(Pi, ki)
   }
   #CDFs of observations
   ef <- emp_CDF(x, pij)

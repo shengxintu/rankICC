@@ -2,7 +2,7 @@
 % Please edit documentation in R/rankICC3levels.R
 \name{rankICC3levels}
 \alias{rankICC3levels}
-\title{Rank-based ICC with three hierarchies}
+\title{Rank ICC with three hierarchies}
 \usage{
 rankICC3levels(
   x,
@@ -10,26 +10,29 @@ rankICC3levels(
   level3,
   weights = c("level1", "level2", "level3"),
   conf.int = 0.95,
-  fisher = FALSE
+  fisher = FALSE,
+  na.rm = FALSE
 )
 }
 \arguments{
-\item{x}{a numeric vector of observations.}
+\item{x}{a numeric or factor vector.}
 
-\item{level2}{a index vector of the level-2 units.}
+\item{level2}{a vector indicating level-2 membership.}
 
-\item{level3}{a index vector of the level-3 units.}
+\item{level3}{a vector indicating level-3 membership.}
 
-\item{weights}{a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"level1"}, \code{"level2"}, \code{"level3"}, or a numeric vector. See Details.}
+\item{weights}{a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"level1"}, \code{"level2"}, \code{"level3"}, or a numeric vector. Default is \code{"level1"}. See Details.}
 
-\item{conf.int}{numeric specifying confidence interval coverage.}
+\item{conf.int}{numeric specifying confidence interval level.}
 
-\item{fisher}{logical indicating whether to apply fisher transformation to compute confidence intervals.}
+\item{fisher}{logical, indicating whether to apply Fisher transformation to compute confidence intervals.}
+
+\item{na.rm}{logical. Should missing values be removed?}
 }
 \value{
-a matrix with two rows. The first row is for rank-based ICC at level 2 and the second row is for rank-based ICC at level 3. Each row with following components.
+a matrix with two rows. The first row is for rank ICC at level 2 and the second row is for rank ICC at level 3. Each row has the following components.
 \tabular{ll}{
-  \code{rankICC} \tab the rank-based ICC. \cr
+  \code{rankICC} \tab the rank ICC. \cr
   \tab \cr
   \code{SE} \tab the standard error. \cr
   \tab \cr
@@ -37,13 +40,21 @@ a matrix with two rows. The first row is for rank-based ICC at level 2 and the s
 }
 }
 \description{
-\code{rankICC3levels} computes the rank-based intraclass correlation coefficient (ICC) with three hierarchies. Starting from the innermost level, the three levels are named level 1, level 2, and level 3. The rank-based ICC at level 2 evaluates the correlation between a random pair from the same level-2 unit. The rank-based ICC at level 3 evaluates the correlation between a random pair from the same level-3 unit but different level-2 units.
+\code{rankICC3levels} computes the rank intraclass correlation coefficient (ICC) with three hierarchies. Starting from the innermost level, the three levels are named level 1, level 2, and level 3. The rank ICC at level 2 evaluates the rank correlation between a random pair from the same level-2 unit. The rank ICC at level 3 evaluates the rank correlation between a random pair from the same level-3 unit but different level-2 units.
 }
 \details{
-\code{"level1"} assigns equal weights to level-1 units; \eqn{p_{ijk}=1/(\sum_{i=1}^n\sum_{j=1}^{n_i}m_{ij})}, where \eqn{n} is the number of level-3 units, \eqn{n_i} is the number of level-2 units in the level-3 unit, and \eqn{m_{ij}} is the number of level-1 units in the level-2 unit. \code{"level2"} assigns equal weights to level-2 units; \eqn{p_{ijk}=1/(m_{ij}\sum_{i=1}^n n_{i})}. \code{"level3"} assigns equal weights to level-3 units; \eqn{p_{ijk}=1/(nn_{i}m_{ij})}.
+\code{"level1"} assigns equal weights to level-1 units; \eqn{p_{ijk}=1/(\sum_{i=1}^n\sum_{j=1}^{n_i}m_{ij})}, where \eqn{n} is the total number of level-3 units, \eqn{n_i} is the number of level-2 units in the \eqn{i}th level-3 unit, and \eqn{m_{ij}} is the number of level-1 units in the \eqn{j}th level-2 unit and the \eqn{i}th level-3 unit. \code{"level2"} assigns equal weights to level-2 units; \eqn{p_{ijk}=1/(m_{ij}\sum_{i=1}^n n_{i})}. \code{"level3"} assigns equal weights to level-3 units; \eqn{p_{ijk}=1/(nn_{i}m_{ij})}.
 }
 \examples{
-\dontrun{
-rankICC3levels(x, level2, level3, weights = "level2")
+k <- 50; m <- 5
+sigma.u <- 1; sigma.e <- 2
+u <- rnorm(k, 5, sigma.u)
+x1 <- matrix(NA, k, m)
+for (i in 1:k){
+x1[i,] <- u[i] + rnorm(5, 0, sigma.e)
 }
+x <- as.vector(t(x1))
+level2 <- rep(1:k, each=5)
+level3 <- level2 / 10
+rankICC3levels(x, level2, level3, weights = "level2")
 }

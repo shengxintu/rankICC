@@ -2,7 +2,7 @@
 % Please edit documentation in R/rankICC.R
 \name{rankICC}
 \alias{rankICC}
-\title{Rank-based ICC with two hierarchies}
+\title{Rank ICC with two hierarchies}
 \usage{
 rankICC(
   x,
@@ -10,26 +10,29 @@ rankICC(
   weights = c("obs", "clusters", "ess", "combination"),
   conf.int = 0.95,
   fisher = FALSE,
+  na.rm = FALSE,
   ...
 )
 }
 \arguments{
-\item{x}{a numeric vector of observations.}
+\item{x}{a numeric or factor vector.}
 
 \item{cluster}{a vector of cluster index corresponding to \code{x}.}
 
-\item{weights}{a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"obs"}, \code{"clusters"}, \code{"ess"}, \code{"combination"}, or a numeric vector. See Details.}
+\item{weights}{a character string indicating which weighting method is used. Or an optional vector of user-defined weights to be used. Should be one of the strings \code{"obs"}, \code{"clusters"}, \code{"ess"}, \code{"combination"}, or a numeric vector. Default is \code{"obs"}. See Details.}
 
-\item{conf.int}{numeric specifying confidence interval coverage.}
+\item{conf.int}{numeric specifying confidence interval level.}
 
-\item{fisher}{logical indicating whether to apply fisher transformation to compute confidence intervals.}
+\item{fisher}{logical, indicating whether to apply Fisher transformation to compute confidence intervals.}
+
+\item{na.rm}{logical. Should missing values be removed?}
 
 \item{...}{additional arguments to be passed to the iteration function if \code{weights} is \code{"ess"} or \code{"combination"}. Specifying the tolerance via \code{"tol"} and the maximum iteration times via \code{"maxIter"}.}
 }
 \value{
 a vector with following components.
 \tabular{ll}{
-  \code{rankICC} \tab the rank-based ICC. \cr
+  \code{rankICC} \tab the rank ICC. \cr
   \tab \cr
   \code{SE} \tab the standard error. \cr
   \tab \cr
@@ -37,14 +40,21 @@ a vector with following components.
 }
 }
 \description{
-\code{rankICC} computes the rank-based intraclass correlation coefficient (ICC) of \code{x}. It can be used with any orderable variables, including continuous and discrete variables. Different weighting methods are provided, including methods assigning equal weights to observations or clusters, iterative methods based on the effective sample size or a linear combination of the first two methods.
+\code{rankICC} computes the rank intraclass correlation coefficient (ICC) of a two-level hierarchical distribution. It can be used with any orderable variable, including continuous and discrete variables. Different weighting methods are provided, including methods assigning equal weights to observations or to clusters.
 }
 \details{
 \code{"obs"} assigns equal weights to observations; \eqn{p_{ij} = 1/N}, where \var{N} is the total number of observations. \code{"clusters"} assigns equal weights to clusters; \eqn{p_{ij} = 1/(nk_i)}, where \var{n} is the total number of clusters and k_i is the cluster size. \code{"ess"} and \code{"combination"} implement iterations until convergence; \eqn{p_{ij}(\gamma_I)=1/(1+k_i\gamma_I)/\{\sum_{j=1}^n k_j/(1+k_j\gamma_I)\}} for \code{"ess"}, \eqn{p_{ij}(\gamma_I)=(1-\gamma_I)/N+\gamma_I/(nk_i)} for \code{"combination"}.
 }
 \examples{
-\dontrun{
+k <- 50; m <- 5
+sigma.u <- 1; sigma.e <- 2
+u <- rnorm(k, 5, sigma.u)
+x1 <- matrix(NA, k, m)
+for (i in 1:k){
+x1[i,] <- u[i] + rnorm(5, 0, sigma.e)
+}
+x <- as.vector(t(x1))
+cluster <- rep(1:k, each=5)
 rankICC(x, cluster, weights = "clusters")
 rankICC(x, cluster, weights = "ess", tol = 1e-4, maxIter = 10)
-}
 }
