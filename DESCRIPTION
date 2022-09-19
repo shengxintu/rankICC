@@ -2,10 +2,12 @@ Package: rankICC
 Type: Package
 Title: Rank Intraclass Correlation for Clustered Data
 Version: 0.1.0
-Author: Shengxin Tu
+Date: 2022-09-19
+Author: Shengxin Tu, Chun Li, Donglin Zeng, Bryan Shepherd
 Maintainer: Shengxin Tu <shengxin.tu@vanderbilt.edu>
-Description: A package to estimate rank ICC for clustered data. 
+Description: Estimates the rank ICC for clustered continuous, ordinal, binary, and count data. 
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
+Collate: 'rankICC.R' 'rankICC3levels.R'
 RoxygenNote: 7.1.2

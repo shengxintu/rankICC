@@ -55,6 +55,9 @@ x1[i,] <- u[i] + rnorm(5, 0, sigma.e)
 }
 x <- as.vector(t(x1))
 level2 <- rep(1:k, each=5)
-level3 <- level2 / 10
+level3 <- round(level2 / 10)
 rankICC3levels(x, level2, level3, weights = "level2")
+}
+\references{
+Tu S, Li C, Zeng D, Shepherd BE (2022) Rank Intraclass Correlation for Clustered Data. Manuscript submitted for publication.
 }

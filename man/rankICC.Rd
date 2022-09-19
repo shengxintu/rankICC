@@ -58,3 +58,6 @@ cluster <- rep(1:k, each=5)
 rankICC(x, cluster, weights = "clusters")
 rankICC(x, cluster, weights = "ess", tol = 1e-4, maxIter = 10)
 }
+\references{
+Tu S, Li C, Zeng D, Shepherd BE (2022) Rank Intraclass Correlation for Clustered Data. Manuscript submitted for publication
+}
