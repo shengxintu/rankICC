@@ -16,7 +16,7 @@ Authors@R: c(person(given = "Shengxin",
              person(given = "Bryan",
                     family = "Shepherd",
                     role = "aut"))
-Description: Estimates the rank intraclass correlation coefficient for clustered continuous, ordinal, binary, and count data <https://github.com/shengxintu/rankICC>. 
+Description: Estimates the rank intraclass correlation coefficient (ICC) for clustered continuous, ordinal, binary, and count data <https://github.com/shengxintu/rankICC>. 
 License: GPL (>= 2)
 Encoding: UTF-8
 Collate: 'rankICC.R' 'rankICC3levels.R'
