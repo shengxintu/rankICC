@@ -31,7 +31,7 @@
 #' rankICC(x, cluster, weights = "clusters")
 #' rankICC(x, cluster, weights = "ess", tol = 1e-4, maxIter = 10)
 #' @export
-
+#' @importFrom stats complete.cases qnorm sd
 
 rankICC <- function(x, cluster, weights = c("obs", "clusters", "ess", "combination"),
                            conf.int = 0.95, fisher = FALSE, na.rm = FALSE, ...){
@@ -67,8 +67,8 @@ rankICCest <- function(x, cluster, ri = 0, opt_method = "ess",
   ki <- table(cluster)
   if(sum(ki==1)){
     idx <- names(ki[ki > 1])
-    cluster <- cluster[cluster %in% idx]
     x <- x[cluster %in% idx]
+    cluster <- cluster[cluster %in% idx]
     warning("clusters with only one observation were removed")
   }
   cluster <- factor(cluster, levels=unique(cluster))

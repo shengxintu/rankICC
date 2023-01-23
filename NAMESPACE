@@ -2,3 +2,6 @@
 
 export(rankICC)
 export(rankICC3levels)
+importFrom(stats,complete.cases)
+importFrom(stats,qnorm)
+importFrom(stats,sd)
