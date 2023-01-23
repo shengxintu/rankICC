@@ -1,8 +1,8 @@
 Package: rankICC
 Type: Package
 Title: Rank Intraclass Correlation for Clustered Data
-Version: 0.1.0
-Date: 2022-09-19
+Version: 1.0.1
+Date: 2023-01-23
 Authors@R: c(person(given = "Shengxin",
                     family = "Tu",
                     role = c("aut", "cre"),
