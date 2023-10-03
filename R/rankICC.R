@@ -17,7 +17,7 @@
 #'   \tab \cr
 #'   \code{Lower, Upper} \tab the lower and upper bound of the confidence interval.\cr
 #' }
-#' @references Tu S, Li C, Zeng D, Shepherd BE (2022) Rank Intraclass Correlation for Clustered Data. Manuscript submitted for publication
+#' @references Tu, S, Li, C, Zeng, D, Shepherd, BE. Rank intraclass correlation for clustered data. Statistics in Medicine. 2023; 1-16. doi: 10.1002/sim.9864
 #' @examples
 #' k <- 50; m <- 5
 #' sigma.u <- 1; sigma.e <- 2
