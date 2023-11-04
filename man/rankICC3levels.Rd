@@ -59,5 +59,5 @@ level3 <- round(level2 / 10)
 rankICC3levels(x, level2, level3, weights = "level2")
 }
 \references{
-Tu S, Li C, Zeng D, Shepherd BE (2022) Rank Intraclass Correlation for Clustered Data. Manuscript submitted for publication.
+Tu, S., Li, C., Zeng, D., and Shepherd, B. E. (2023). Rank intraclass correlation for clustered data. Statistics in Medicine 42, 4333-4348.
 }

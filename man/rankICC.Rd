@@ -59,5 +59,5 @@ rankICC(x, cluster, weights = "clusters")
 rankICC(x, cluster, weights = "ess", tol = 1e-4, maxIter = 10)
 }
 \references{
-Tu, S, Li, C, Zeng, D, Shepherd, BE. Rank intraclass correlation for clustered data. Statistics in Medicine. 2023; 1-16. doi: 10.1002/sim.9864
+Tu, S., Li, C., Zeng, D., and Shepherd, B. E. (2023). Rank intraclass correlation for clustered data. Statistics in Medicine 42, 4333-4348.
 }
